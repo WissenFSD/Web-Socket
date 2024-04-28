@@ -31,7 +31,7 @@ app.MapControllers();
 app.UseWebSockets();
 
 
-
+List<WebSocket> webSockets = new List<WebSocket>();
 app.Use(async (ctx, nextMessage) =>
 {
 
@@ -43,6 +43,7 @@ app.Use(async (ctx, nextMessage) =>
         if (ctx.WebSockets.IsWebSocketRequest)
         {
             var socket = await ctx.WebSockets.AcceptWebSocketAsync();
+            webSockets.Add(socket);
             await Speak(ctx, socket);
         }
         else
@@ -63,6 +64,7 @@ app.Run();
 
 async Task Speak(HttpContext context, WebSocket socket)
 {
+    
     var bite = new byte[1024];
 
     WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(bite), CancellationToken.None);
@@ -73,18 +75,14 @@ async Task Speak(HttpContext context, WebSocket socket)
 
         var rnd = new Random();
         var random = rnd.Next(1, 100);
-        //string message = string.Format("Numaran {0}", random.ToString());
-
-        string message = string.Empty;
-        for (int i = (inComingMessage.Length) - (1); i >= 0; i--)
-        {
-            message += inComingMessage[i];
-        }
+        string message = string.Format("Numaran {0}", random.ToString());
 
         byte[] outGoingMessage = Encoding.UTF8.GetBytes(message);
 
-
-        await socket.SendAsync(new ArraySegment<byte>(outGoingMessage, 0, outGoingMessage.Length), result.MessageType, result.EndOfMessage, CancellationToken.None);
+        foreach (var item in webSockets)
+        {
+            await item.SendAsync(new ArraySegment<byte>(outGoingMessage, 0, outGoingMessage.Length), result.MessageType, result.EndOfMessage, CancellationToken.None);
+        }
 
         result = await socket.ReceiveAsync(new ArraySegment<byte>(bite), CancellationToken.None);
 
