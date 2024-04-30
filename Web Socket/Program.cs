@@ -1,5 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
+using Web_Socket.Model;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,7 +32,7 @@ app.MapControllers();
 app.UseWebSockets();
 
 
-List<WebSocket> webSockets = new List<WebSocket>();
+List<SocketModel> webSockets = new List<SocketModel>();
 app.Use(async (ctx, nextMessage) =>
 {
 
@@ -43,7 +44,7 @@ app.Use(async (ctx, nextMessage) =>
         if (ctx.WebSockets.IsWebSocketRequest)
         {
             var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-            webSockets.Add(socket);
+            webSockets.Add(new SocketModel() { Socket=socket, SocketName=ctx.Request.QueryString.ToString()});
             await Speak(ctx, socket);
         }
         else
@@ -64,35 +65,38 @@ app.Run();
 
 async Task Speak(HttpContext context, WebSocket socket)
 {
-    
-    var bite = new byte[1024];
-
-    WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(bite), CancellationToken.None);
-
-
-    var inComingMessage = Encoding.UTF8.GetString(bite, 0, result.Count);
-    Console.WriteLine("Clientten gelen : " + inComingMessage);
-
-    //var rnd = new Random();
-    //var random = rnd.Next(1, 100);
-    //string message = string.Format("Numaran {0}", random.ToString());
-
-    byte[] outGoingMessage = Encoding.UTF8.GetBytes(inComingMessage);
-
-    // Sonsuz döngü 
-
-    foreach (var item in webSockets)
+    while (true)
     {
-        item.SendAsync(new ArraySegment<byte>(outGoingMessage, 0, outGoingMessage.Length), result.MessageType, result.EndOfMessage, CancellationToken.None);
+        var bite = new byte[1024];
+
+        WebSocketReceiveResult result = await socket.ReceiveAsync(new ArraySegment<byte>(bite), CancellationToken.None);
+
+
+        var inComingMessage = Encoding.UTF8.GetString(bite, 0, result.Count);
+        Console.WriteLine("Clientten gelen : " + inComingMessage);
+
+        //var rnd = new Random();
+        //var random = rnd.Next(1, 100);
+        //string message = string.Format("Numaran {0}", random.ToString());
+
+        byte[] outGoingMessage = Encoding.UTF8.GetBytes(inComingMessage);
+
+        // Sonsuz döngü 
+
+        // Sockete query string ile parametre gönderdik, sebebi, mesaj gönderen kiþinin kendi gönderdiði mesajý geri almasýydý.
+        foreach (var item in webSockets.Where(s=>s.SocketName!=context.Request.QueryString.ToString()))
+        {
+            item.Socket.SendAsync(new ArraySegment<byte>(outGoingMessage, 0, outGoingMessage.Length), result.MessageType, result.EndOfMessage, CancellationToken.None);
+        }
+
+
+        //while (!result.CloseStatus.HasValue)
+        //{
+
+        //    //result = await socket.ReceiveAsync(new ArraySegment<byte>(bite), CancellationToken.None);
+
+        //}
+        // webSockets.Remove(socket);
+        //await socket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
     }
-
-    //while (!result.CloseStatus.HasValue)
-    //{
-        
-    //    //result = await socket.ReceiveAsync(new ArraySegment<byte>(bite), CancellationToken.None);
-
-    //}
-   // webSockets.Remove(socket);
-   //await socket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
-  
 }
